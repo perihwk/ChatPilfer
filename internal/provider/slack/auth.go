@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"log"
 	"net/http"
 	"net/http/cookiejar"
 	"net/url"
@@ -183,7 +182,7 @@ func validateAuth(httpClient *http.Client, token, userAgent string) (string, *Us
 func getWorkspaces(httpClient *http.Client, userAgent string) ([]string, error) {
 	req, err := http.NewRequest("GET", slackBaseUrl, nil)
 	if err != nil {
-		fmt.Println(err)
+		return nil, err
 	}
 
 	if userAgent != "" {
@@ -194,12 +193,12 @@ func getWorkspaces(httpClient *http.Client, userAgent string) ([]string, error) 
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
-		log.Fatalf("err, %s", err)
+		return nil, err
 	}
 
 	Wbody, err := io.ReadAll(resp.Body)
 	if err != nil {
-		// handle error
+		return nil, err
 	}
 	defer resp.Body.Close()
 
