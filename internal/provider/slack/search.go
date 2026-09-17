@@ -17,6 +17,7 @@ type PinnedItem struct {
 	CreatedBy string        `json:"created_by"`
 	Channel   string        `json:"channel"`
 	Message   PinnedMessage `json:"message"`
+	Error     string        `json:"error"`
 }
 
 type PinnedMessage struct {
@@ -31,9 +32,9 @@ type File struct {
 	DownloadUrl string `json:"url_private_download"`
 }
 
-func (sp *SlackSearchProvider) GetPinnedChats() error {
+func (sp *SlackSearchProvider) GetPinnedChats() ([]PinnedItem, error) {
 	if sp.cache.channels == nil {
-		return fmt.Errorf("no channels in cache make sure initialize was ran")
+		return nil, fmt.Errorf("no channels in cache make sure initialize was ran")
 	}
 
 	sp.cache.mu.Lock()
@@ -42,13 +43,14 @@ func (sp *SlackSearchProvider) GetPinnedChats() error {
 
 	getPinnedChatsUrl, err := url.JoinPath(slackBaseUrl, "api", "pins.list")
 	if err != nil {
-		return err
+		return nil, err
 	}
 
+	var result []PinnedItem
 	for _, channel := range channelsCopy {
 		req, err := http.NewRequest("GET", getPinnedChatsUrl, nil)
 		if err != nil {
-			return nil
+			return nil, err
 		}
 
 		q := req.URL.Query()
@@ -58,19 +60,27 @@ func (sp *SlackSearchProvider) GetPinnedChats() error {
 
 		resp, err := sp.httpClient.Do(req)
 		if err != nil {
-			return err
+			return nil, err
 		}
 
 		var apiResp PinnedChatResp
 		if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
-			return err
+			return nil, err
 		}
 
-		pretty, err := json.MarshalIndent(apiResp, "", "    ")
-		if err != nil {
-			return err
+		if !apiResp.OK {
+			result = append(result, PinnedItem{
+				Channel: channel.ID,
+				Error:   apiResp.Error,
+			})
+			continue
 		}
-		fmt.Printf("%s\n", pretty)
+
+		if result == nil {
+			result = apiResp.Items
+		} else {
+			result = append(result, apiResp.Items...)
+		}
 	}
-	return nil
+	return result, nil
 }
