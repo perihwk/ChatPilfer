@@ -27,7 +27,7 @@ func main() {
 			log.Fatal(err)
 		}
 
-		if err := provider.GetPinnedChats(); err != nil {
+		if _, err := provider.GetPinnedChats(); err != nil {
 			log.Fatal(err)
 		}
 	}
