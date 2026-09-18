@@ -150,6 +150,7 @@ func (sp *SlackSearchProvider) loadUserInfo() error {
 			RealName string `json:"real_name"`
 			Name     string `json:"name"`
 			IsAdmin  bool   `json:"is_admin"`
+			IsOwner  bool   `json:"is_owner"`
 			Profile  struct {
 				Email string `json:"email"`
 			} `json:"profile"`
@@ -170,6 +171,7 @@ func (sp *SlackSearchProvider) loadUserInfo() error {
 		username: apiResp.User.Name,
 		email:    apiResp.User.Profile.Email,
 		isAdmin:  apiResp.User.IsAdmin,
+		isOwner:  apiResp.User.IsOwner,
 	}
 	sp.cache.mu.Unlock()
 

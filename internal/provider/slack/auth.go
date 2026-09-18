@@ -36,6 +36,8 @@ type User struct {
 	username string
 	email    string
 	isAdmin  bool
+	isOwner  bool
+	has2FA   bool
 }
 
 type Channel struct {
