@@ -8,7 +8,9 @@ import (
 	"net/http/cookiejar"
 	"net/url"
 	"regexp"
+	"strconv"
 	"sync"
+	"time"
 
 	"golang.org/x/net/publicsuffix"
 )
@@ -30,14 +32,14 @@ type cache struct {
 }
 
 type User struct {
-	userID   string
-	teamID   string
-	fullName string
-	username string
-	email    string
-	isAdmin  bool
-	isOwner  bool
-	has2FA   bool
+	UserID   string `json:"user_id"`
+	TeamID   string `json:"team_id"`
+	FullName string `json:"full_name"`
+	Username string `json:"username"`
+	Email    string `json:"email"`
+	IsAdmin  bool   `json:"is_admin"`
+	IsOwner  bool   `json:"is_owner"`
+	Has2FA   bool   `json:"has_2fa"`
 }
 
 type Channel struct {
@@ -52,30 +54,79 @@ type Config struct {
 }
 
 type authTransport struct {
-	token       string
-	userAgent   string
-	proxyServer string
-	base        http.RoundTripper
+	token     string
+	userAgent string
+	base      http.RoundTripper
 }
 
 func (at *authTransport) RoundTrip(req *http.Request) (*http.Response, error) {
-	req.Header.Add("User-Agent", at.userAgent)
-	req.Header.Add("Authorization", fmt.Sprintf("Bearer %s", at.token))
+	cloned := req.Clone(req.Context())
+	cloned.Header.Set("User-Agent", at.userAgent)
+	cloned.Header.Set("Authorization", fmt.Sprintf("Bearer %s", at.token))
 
-	base := at.base
-	if base == nil {
-		if at.proxyServer != "" {
-			proxyUrl, err := url.Parse(at.proxyServer)
+	return at.base.RoundTrip(cloned)
+}
+
+type rateLimitTransport struct {
+	sleepFor      int
+	retryAttempts int
+	base          http.RoundTripper
+}
+
+func (rt *rateLimitTransport) RoundTrip(req *http.Request) (*http.Response, error) {
+	if rt.base == nil {
+		return nil, fmt.Errorf("rateLimitTransport must wrap an authTransport")
+	}
+
+	// body of request is consumed by the http.Do so have to make a copy for retries
+	var getBody func() (io.ReadCloser, error)
+	if req.GetBody != nil {
+		req = req.Clone(req.Context())
+		getBody = req.GetBody
+	}
+
+	var lastResp *http.Response
+	for attempt := range rt.retryAttempts {
+		if getBody != nil {
+			body, err := getBody()
 			if err != nil {
 				return nil, err
 			}
-			base = &http.Transport{Proxy: http.ProxyURL(proxyUrl)}
-		} else {
-			base = http.DefaultTransport
+			req.Body = body
+		}
+
+		resp, err := rt.base.RoundTrip(req)
+		if err != nil {
+			return nil, err
+		}
+
+		// only care if it is a 429
+		if resp.StatusCode != http.StatusTooManyRequests {
+			return resp, nil
+		}
+
+		lastResp = resp
+
+		if attempt == rt.retryAttempts-1 {
+			break
+		}
+
+		requestedRetry, err := strconv.Atoi(resp.Header.Get("Retry-After"))
+		if err != nil || requestedRetry <= 0 {
+			requestedRetry = rt.sleepFor
+		}
+
+		resp.Body.Close()
+
+		select {
+		case <-time.After(time.Duration(requestedRetry) * time.Second):
+			continue
+		case <-req.Context().Done():
+			return nil, req.Context().Err()
 		}
 	}
 
-	return base.RoundTrip(req)
+	return lastResp, nil
 }
 
 func GetProvidersFromCookie(proxyServer, userAgent, dCookie string) ([]*SlackSearchProvider, error) {
@@ -124,7 +175,7 @@ func GetProvidersFromCookie(proxyServer, userAgent, dCookie string) ([]*SlackSea
 			continue
 		}
 
-		provider := NewSlackProvider(httpClient, proxyServer, name, authUser.userID, authUser.teamID, token, workspaceUrl, userAgent)
+		provider := NewSlackProvider(httpClient, name, authUser.UserID, authUser.TeamID, token, workspaceUrl, userAgent)
 		providers = append(providers, provider)
 	}
 
@@ -173,9 +224,9 @@ func validateAuth(httpClient *http.Client, token, userAgent string) (string, *Us
 	}
 
 	apiUser := &User{
-		userID:   apiResp.UserID,
-		teamID:   apiResp.TeamID,
-		username: apiResp.User,
+		UserID:   apiResp.UserID,
+		TeamID:   apiResp.TeamID,
+		Username: apiResp.User,
 	}
 
 	return apiResp.Team, apiUser, nil
