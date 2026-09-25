@@ -9,34 +9,6 @@ import (
 	"strconv"
 )
 
-var cloudQueries = [...]string{
-	// AWS
-	"s3.amazonaws.com",
-	"elb.amazonaws.com",
-	"rds.amazonaws.com",
-	"amazon.com/s3/*",
-	"*://s3*",
-	"cloudfront.net",
-
-	// Azure
-	"core.windows.net",
-	"azurewebsites.net",
-	"vault.azure.net",
-	"database.windows.net",
-	// GCP
-	"storage.googleapis.com",
-	"storage.cloud.google.com",
-	"gs://*",
-	//Cloud storage
-	"drive.google.com",
-	"dropbox.com",
-	"my.sharepoint.com",
-	// misc
-	"digitaloceanspaces.com",
-	"cloudflarestorage.com",
-	"backblazeb2.com",
-}
-
 type PinnedItem struct {
 	CreatedBy string        `json:"created_by"`
 	Channel   string        `json:"channel"`
@@ -63,13 +35,13 @@ type searchMessagesParams struct {
 }
 
 type searchResult struct {
-	TeamID    string
-	ChannelID string
-	UserID    string
-	Timestamp string
-	Text      string
-	Permalink string
-	Files     []SearchResultFile
+	TeamID    string             `json:"team_id"`
+	ChannelID string             `json:"channel_id"`
+	UserID    string             `json:"user_id"`
+	Timestamp string             `json:"ts"`
+	Text      string             `json:"text"`
+	Permalink string             `json:"permalink"`
+	Files     []SearchResultFile `json:"files"`
 }
 
 type SearchResultFile struct {
@@ -181,60 +153,75 @@ func (sp *SlackSearchProvider) searchAllMessages(query string) ([]searchResult, 
 	return allResults, nil
 }
 
-func (sp *SlackSearchProvider) SearchCloudEndpoints() (map[string]searchResult, error) {
-	// specifically searches for references to cloud providers
-	cloudProviderPattern := regexp.MustCompile(`(?i)(` +
-		// AWS
-		`[a-zA-Z0-9\-\.\_]+\.s3[.-][a-z0-9\-]*\.amazonaws\.com` +
-		`|s3://[a-zA-Z0-9\-\.\_]+` +
-		`|s3\.[a-zA-Z0-9\-]+\.amazonaws\.com` +
-		`|s3\.amazonaws\.com/[a-zA-Z0-9\-\.\_]+` +
-		`|s3\.console\.aws\.amazon\.com/s3/buckets/[a-zA-Z0-9\-\.\_]+` +
-		`|[a-zA-Z0-9\-]+\.execute-api\.[a-z0-9\-]+\.amazonaws\.com` +
-		`|[a-zA-Z0-9\-]+\.cloudfront\.net` +
-		`|[a-zA-Z0-9\-]+\.elb\.amazonaws\.com` +
-		`|[a-zA-Z0-9\-]+\.rds\.amazonaws\.com` +
-		// Azure
-		`|[a-zA-Z0-9\-\.\_]+\.blob\.core\.windows\.net` +
-		`|[a-zA-Z0-9\-\.\_]+\.file\.core\.windows\.net` +
-		`|[a-zA-Z0-9\-\.\_]+\.dfs\.core\.windows\.net` +
-		`|[a-zA-Z0-9\-\.\_]+\.queue\.core\.windows\.net` +
-		`|[a-zA-Z0-9\-\.\_]+\.table\.core\.windows\.net` +
-		`|[a-zA-Z0-9\-]+\.azurewebsites\.net` +
-		`|[a-zA-Z0-9\-]+\.vault\.azure\.net` +
-		`|[a-zA-Z0-9\-]+\.database\.windows\.net` +
-		// GCP
-		`|[a-zA-Z0-9\-_.]+\.storage\.googleapis\.com` +
-		`|storage\.googleapis\.com/[a-zA-Z0-9\-_.]+` +
-		`|storage\.cloud\.google\.com/[a-zA-Z0-9\-_./]+` +
-		`|gs://[a-zA-Z0-9\-_.]+` +
-		// Personal cloud storage
-		`|drive\.google\.com/(?:file/d/|drive/folders/|open\?id=)[a-zA-Z0-9\-_]+` +
-		`|[a-zA-Z0-9\-]+\.dropbox\.com/[a-zA-Z0-9\-_./?=&]+` +
-		`|[a-zA-Z0-9\-]+-my\.sharepoint\.com/[a-zA-Z0-9\-_./:?=&]+` +
-		// Other providers
-		`|[a-zA-Z0-9\-]+\.digitaloceanspaces\.com` +
-		`|[a-zA-Z0-9\-]+\.r2\.cloudflarestorage\.com` +
-		`|[a-zA-Z0-9\-]+\.backblazeb2\.com` +
-		`)`)
+// perform search and return the searchResult. Do not do any regex to extract interesting information
+func (sp *SlackSearchProvider) SearchMessages(queries []string) (map[string][]any, error) {
+	// track all results so we don't add duplicate messages if there are multiple query matches
+	type resultKey struct {
+		timestamp string
+		permalink string
+	}
+	seen := make(map[resultKey]bool)
 
-	cloudResults := make(map[string]searchResult)
-	for _, query := range cloudQueries {
-		cloudEndpoints, err := sp.searchAllMessages(query)
+	searchResults := make(map[string][]any)
+	for _, query := range queries {
+		results, err := sp.searchAllMessages(query)
 		if err != nil {
 			continue
 		}
 
-		for _, result := range cloudEndpoints {
-			fmt.Println(result.Text)
-			matches := cloudProviderPattern.FindAllString(result.Text, -1)
+		for _, result := range results {
+			key := resultKey{
+				timestamp: result.Timestamp,
+				permalink: result.Permalink,
+			}
+
+			if seen[key] {
+				continue
+			}
+
+			seen[key] = true
+			searchResults[query] = append(searchResults[query], result)
+		}
+	}
+
+	return searchResults, nil
+}
+
+// search messages then attempt to extract the useful information via regex
+func (sp *SlackSearchProvider) SearchMessagesRegex(queries []string, regex string) (map[string][]any, error) {
+	regexPattern := regexp.MustCompile(regex)
+
+	// track all results so we don't add duplicate messages if there are multiple query matches
+	type resultKey struct {
+		match     string
+		permalink string
+	}
+	seen := make(map[resultKey]bool)
+
+	searchResults := make(map[string][]any)
+	for _, query := range queries {
+		results, err := sp.searchAllMessages(query)
+		if err != nil {
+			continue
+		}
+
+		for _, result := range results {
+			matches := regexPattern.FindAllString(result.Text, -1)
 			for _, match := range matches {
-				cloudResults[match] = result
+				key := resultKey{
+					match:     match,
+					permalink: result.Permalink,
+				}
+				if seen[key] {
+					continue
+				}
+				seen[key] = true
+				searchResults[match] = append(searchResults[match], result)
 			}
 		}
 	}
 
-	return cloudResults, nil
+	return searchResults, nil
 }
 
 func (sp *SlackSearchProvider) GetWorkspaceUsers(limit int) ([]User, error) {
@@ -298,14 +285,14 @@ func (sp *SlackSearchProvider) GetWorkspaceUsers(limit int) ([]User, error) {
 
 		for _, member := range apiResp.Members {
 			result = append(result, User{
-				userID:   member.ID,
-				fullName: member.RealName,
-				username: member.Name,
-				teamID:   member.TeamID,
-				email:    member.Profile.Email,
-				isAdmin:  member.IsAdmin,
-				isOwner:  member.IsOwner,
-				has2FA:   member.Has2FA,
+				UserID:   member.ID,
+				FullName: member.RealName,
+				Username: member.Name,
+				TeamID:   member.TeamID,
+				Email:    member.Profile.Email,
+				IsAdmin:  member.IsAdmin,
+				IsOwner:  member.IsOwner,
+				Has2FA:   member.Has2FA,
 			})
 		}
 
@@ -315,6 +302,7 @@ func (sp *SlackSearchProvider) GetWorkspaceUsers(limit int) ([]User, error) {
 			break
 		}
 	}
+
 	return result, nil
 }
 
