@@ -5,11 +5,11 @@ import (
 	"fmt"
 	"net/http"
 	"net/url"
+	"strings"
 )
 
 type SlackSearchProvider struct {
 	DisplayName  string
-	ProviderType string
 	Enabled      bool
 	token        string
 	refreshToken string
@@ -21,26 +21,29 @@ type SlackSearchProvider struct {
 	httpClient *http.Client
 }
 
-func NewSlackProvider(httpClient *http.Client, proxyServer, name, userID, teamID, token, workspace, userAgent string) *SlackSearchProvider {
+func NewSlackProvider(httpClient *http.Client, name, userID, teamID, token, workspace, userAgent string) *SlackSearchProvider {
 	cloned := *httpClient
 
-	cloned.Transport = &authTransport{
-		userAgent:   userAgent,
-		token:       token,
-		proxyServer: proxyServer,
+	cloned.Transport = &rateLimitTransport{
+		base: &authTransport{
+			userAgent: userAgent,
+			token:     token,
+			base:      httpClient.Transport,
+		},
+		sleepFor:      60,
+		retryAttempts: 2,
 	}
 
 	return &SlackSearchProvider{
-		DisplayName:  name,
-		ProviderType: "slack",
-		Enabled:      true,
-		token:        token,
-		workspace:    workspace,
-		userAgent:    userAgent,
+		DisplayName: name,
+		Enabled:     true,
+		token:       token,
+		workspace:   workspace,
+		userAgent:   userAgent,
 		cache: &cache{
 			user: &User{
-				userID: userID,
-				teamID: teamID,
+				UserID: userID,
+				TeamID: teamID,
 			},
 		},
 		httpClient: &cloned,
@@ -121,8 +124,40 @@ func (sp *SlackSearchProvider) loadAccessibleChannels() error {
 	return nil
 }
 
+// enumerates all the domains you are allowed to automatically join a workspace from
+// could get lucky and find an expired domain in the list you can buy and join with
+func (sp *SlackSearchProvider) enumerateSigninDomains() ([]string, error) {
+	getSigninDomainsReq, err := url.JoinPath(slackBaseUrl, "api", "team.info")
+	if err != nil {
+		return nil, err
+	}
+
+	req, err := http.NewRequest("GET", getSigninDomainsReq, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	resp, err := sp.httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	var apiResp struct {
+		OK   string `json:"ok"`
+		Team struct {
+			EmailDomains string `json:"email_domain"`
+		} `json:"team"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return nil, err
+	}
+
+	return strings.Split(apiResp.Team.EmailDomains, ","), nil
+}
+
 func (sp *SlackSearchProvider) loadUserInfo() error {
-	getUserAPI, err := url.JoinPath(slackBaseUrl, "/api/users.info")
+	getUserAPI, err := url.JoinPath(slackBaseUrl, "api", "users.info")
 	if err != nil {
 		return err
 	}
@@ -133,7 +168,7 @@ func (sp *SlackSearchProvider) loadUserInfo() error {
 	}
 
 	q := req.URL.Query()
-	q.Add("user", sp.cache.user.userID)
+	q.Add("user", sp.cache.user.UserID)
 
 	req.URL.RawQuery = q.Encode()
 
@@ -165,13 +200,13 @@ func (sp *SlackSearchProvider) loadUserInfo() error {
 
 	sp.cache.mu.Lock()
 	sp.cache.user = &User{
-		userID:   apiResp.User.ID,
-		teamID:   apiResp.User.TeamID,
-		fullName: apiResp.User.RealName,
-		username: apiResp.User.Name,
-		email:    apiResp.User.Profile.Email,
-		isAdmin:  apiResp.User.IsAdmin,
-		isOwner:  apiResp.User.IsOwner,
+		UserID:   apiResp.User.ID,
+		TeamID:   apiResp.User.TeamID,
+		FullName: apiResp.User.RealName,
+		Username: apiResp.User.Name,
+		Email:    apiResp.User.Profile.Email,
+		IsAdmin:  apiResp.User.IsAdmin,
+		IsOwner:  apiResp.User.IsOwner,
 	}
 	sp.cache.mu.Unlock()
 
