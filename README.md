@@ -16,6 +16,10 @@ go run cmd/main.go --slack-cookie <d-cookie> --proxy-server http://<proxy-url>:<
 
 * Identify all Slack workspaces the supplied cookie can access and then search them with all the enabled queries
 
+ ```go run cmd/main.go  --output <output folder>```
+
+* Write the results to a specific folder split by provider type and workspace (if applicable)
+
  ```go run cmd/main.go  --proxy-server <proxy-url>```
 
 * Route all HTTP requests through the chosen proxy-server. This is especially useful when circumventing [detections Slack has put into place](https://slack.engineering/catching-compromised-cookies/).

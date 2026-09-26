@@ -39,12 +39,14 @@ type Entry struct {
 }
 
 type service struct {
+	outputFolder   string
 	defaultQueries map[string]*QueryGroups
 	providers      map[string]*Entry
 }
 
-func NewService(defaultQueries map[string]*QueryGroups) *service {
+func NewService(defaultQueries map[string]*QueryGroups, outputFolder string) *service {
 	return &service{
+		outputFolder:   outputFolder,
 		defaultQueries: defaultQueries,
 		providers:      make(map[string]*Entry),
 	}
@@ -75,12 +77,12 @@ func (s *service) UpdateProvider(name string, providerQueries map[string]*QueryG
 func (s *service) PilferAll() map[string]error {
 	providerErrors := make(map[string]error)
 	for pName, provider := range s.providers {
-		if err := os.MkdirAll(path.Join(provider.Type.ToString(), provider.Name), 0750); err != nil {
+		if err := os.MkdirAll(path.Join(s.outputFolder, provider.Type.ToString(), provider.Name), 0750); err != nil {
 			providerErrors[provider.Name] = err
 			continue
 		}
 		for _, queryGroup := range provider.Queries {
-			fileCache, err := os.OpenFile(path.Join(provider.Type.ToString(), provider.Name, queryGroup.outputFile), os.O_RDWR|os.O_CREATE, 0644)
+			fileCache, err := os.OpenFile(path.Join(s.outputFolder, provider.Type.ToString(), provider.Name, queryGroup.outputFile), os.O_RDWR|os.O_CREATE, 0644)
 			if err != nil {
 				providerErrors[pName] = err
 				break
