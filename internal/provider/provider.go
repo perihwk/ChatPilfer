@@ -29,6 +29,7 @@ type ChatProvider interface {
 	Initialize() error
 	SearchMessagesRegex(queries []string, regex string) (map[string][]any, error)
 	SearchMessages(queries []string) (map[string][]any, error)
+	SearchFiles(queries []string) (map[string][]any, error)
 }
 
 type Entry struct {
@@ -88,9 +89,17 @@ func (s *service) PilferAll() map[string]error {
 				break
 			}
 
-			queryResults, err := provider.ChatProvider.SearchMessages(queryGroup.queries)
-			if err != nil {
-				continue
+			var queryResults map[string][]any
+			if queryGroup.searchType == "messages" {
+				queryResults, err = provider.ChatProvider.SearchMessages(queryGroup.queries)
+				if err != nil {
+					continue
+				}
+			} else if queryGroup.searchType == "files" {
+				queryResults, err = provider.ChatProvider.SearchFiles(queryGroup.queries)
+				if err != nil {
+					continue
+				}
 			}
 
 			s.writeOutput(queryResults, fileCache)

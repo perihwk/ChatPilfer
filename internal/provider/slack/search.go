@@ -35,21 +35,34 @@ type searchMessagesParams struct {
 }
 
 type searchResult struct {
-	TeamID    string             `json:"team_id"`
-	ChannelID string             `json:"channel_id"`
-	UserID    string             `json:"user_id"`
-	Timestamp string             `json:"ts"`
-	Text      string             `json:"text"`
-	Permalink string             `json:"permalink"`
-	Files     []SearchResultFile `json:"files"`
+	TeamID    string         `json:"team_id"`
+	ChannelID string         `json:"channel_id"`
+	UserID    string         `json:"user_id"`
+	Timestamp string         `json:"ts"`
+	Text      string         `json:"text"`
+	Permalink string         `json:"permalink"`
+	Files     []AttachedFile `json:"files"`
 }
 
-type SearchResultFile struct {
+type AttachedFile struct {
 	FileID          string `json:"id"`
 	FileType        string `json:"mimetype"`
 	FileSize        int    `json:"size"`
 	FileName        string `json:"name"`
 	FileDownloadUrl string `json:"url_private_download"`
+}
+
+type fileSearchResult struct {
+	FileID      string   `json:"id"`
+	UserID      string   `json:"user"`
+	TeamID      string   `json:"user_team"`
+	Mimetype    string   `json:"mimetype"`
+	FileName    string   `json:"name"`
+	DownloadUrl string   `json:"url_private_download"`
+	Size        int      `json:"size"`
+	Channels    []string `json:"channels"`
+	Timestamp   string   `json:"ts"`
+	Permalink   string   `json:"permalink"`
 }
 
 // individual search request does not handle pagination
@@ -98,11 +111,11 @@ func (sp *SlackSearchProvider) searchMessages(params *searchMessagesParams) (int
 				Channel struct {
 					ID string `json:"id"`
 				} `json:"channel"`
-				UserID    string             `json:"user"`
-				TS        string             `json:"ts"`
-				Permalink string             `json:"permalink"`
-				Text      string             `json:"text"`
-				Files     []SearchResultFile `json:"files"`
+				UserID    string         `json:"user"`
+				TS        string         `json:"ts"`
+				Permalink string         `json:"permalink"`
+				Text      string         `json:"text"`
+				Files     []AttachedFile `json:"files"`
 			} `json:"matches"`
 		} `json:"messages"`
 	}
@@ -125,6 +138,111 @@ func (sp *SlackSearchProvider) searchMessages(params *searchMessagesParams) (int
 	}
 
 	return apiResp.Messages.Pagination.PageCount, result, nil
+}
+
+// individual search request does not handle pagination
+func (sp *SlackSearchProvider) searchFiles(params *searchMessagesParams) (int, []fileSearchResult, error) {
+	searchUrl, err := url.JoinPath(slackBaseUrl, "api", "search.files")
+	if err != nil {
+		return 0, nil, err
+	}
+
+	req, err := http.NewRequest("GET", searchUrl, nil)
+	if err != nil {
+		return 0, nil, err
+	}
+
+	q := req.URL.Query()
+
+	if params.Query == "" {
+		return 0, nil, fmt.Errorf("query param is required")
+	} else {
+		q.Add("query", params.Query)
+	}
+
+	q.Add("page", strconv.Itoa(params.Page))
+
+	if params.Count > 0 {
+		q.Add("count", strconv.Itoa(params.Count))
+	}
+
+	req.URL.RawQuery = q.Encode()
+
+	resp, err := sp.httpClient.Do(req)
+	if err != nil {
+		return 0, nil, err
+	}
+	defer resp.Body.Close()
+
+	var apiResp struct {
+		Ok    bool `json:"ok"`
+		Files struct {
+			Total      int `json:"total"`
+			Pagination struct {
+				PageCount int `json:"page_count"`
+			} `json:"pagination"`
+			Matches []struct {
+				FileID      string   `json:"id"`
+				TeamID      string   `json:"user_team"`
+				Mimetype    string   `json:"mimetype"`
+				FileName    string   `json:"name"`
+				DownloadUrl string   `json:"url_private_download"`
+				Size        int      `json:"size"`
+				Channels    []string `json:"channels"`
+				UserID      string   `json:"user"`
+				TS          string   `json:"ts"`
+				Permalink   string   `json:"permalink"`
+			} `json:"matches"`
+		} `json:"files"`
+	}
+
+	if err := json.NewDecoder(resp.Body).Decode(&apiResp); err != nil {
+		return 0, nil, err
+	}
+
+	var result []fileSearchResult
+	for _, match := range apiResp.Files.Matches {
+		result = append(result, fileSearchResult{
+			FileID:      match.FileID,
+			TeamID:      match.TeamID,
+			Channels:    match.Channels,
+			UserID:      match.UserID,
+			Timestamp:   match.TS,
+			Permalink:   match.Permalink,
+			Mimetype:    match.Mimetype,
+			FileName:    match.FileName,
+			DownloadUrl: match.DownloadUrl,
+			Size:        match.Size,
+		})
+	}
+
+	return apiResp.Files.Pagination.PageCount, result, nil
+}
+
+// searchAllMessages wraps searchMessages and exhausts all pages
+func (sp *SlackSearchProvider) searchAllFiles(query string) ([]fileSearchResult, error) {
+	var allResults []fileSearchResult
+	page := 1
+
+	for {
+		pageCount, resp, err := sp.searchFiles(&searchMessagesParams{
+			Query: query,
+			Page:  page,
+			Count: 100, // max per page, fewest round trips
+		})
+		if err != nil {
+			return nil, fmt.Errorf("fetching page %d: %w", page, err)
+		}
+
+		allResults = append(allResults, resp...)
+
+		if page >= pageCount {
+			break
+		}
+		page++
+	}
+
+	return allResults, nil
 }
 
 // searchAllMessages wraps searchMessages and exhausts all pages
@@ -165,6 +283,39 @@ func (sp *SlackSearchProvider) SearchMessages(queries []string) (map[string][]an
 	searchResults := make(map[string][]any)
 	for _, query := range queries {
 		results, err := sp.searchAllMessages(query)
+		if err != nil {
+			continue
+		}
+
+		for _, result := range results {
+			key := resultKey{
+				timestamp: result.Timestamp,
+				permalink: result.Permalink,
+			}
+
+			if seen[key] {
+				continue
+			}
+
+			seen[key] = true
+			searchResults[query] = append(searchResults[query], result)
+		}
+	}
+
+	return searchResults, nil
+}
+
+func (sp *SlackSearchProvider) SearchFiles(queries []string) (map[string][]any, error) {
+	// track all results so we don't add duplicate messages if there are multiple query matches
+	type resultKey struct {
+		timestamp string
+		permalink string
+	}
+	seen := make(map[resultKey]bool)
+
+	searchResults := make(map[string][]any)
+	for _, query := range queries {
+		results, err := sp.searchAllFiles(query)
 		if err != nil {
 			continue
 		}
