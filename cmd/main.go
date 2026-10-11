@@ -13,7 +13,7 @@ func main() {
 	var proxyServer = flag.String("proxy-server", "", "optional proxy url")
 	var userAgent = flag.String("user-agent", "", "optional user agent")
 	var dCookie = flag.String("slack-cookie", "", "the slack d cookie. Has prefix 'xoxd'")
-	var outputFolder = flag.String("output", "", "base folder to write all the data to")
+	var outputFolder = flag.String("output", "out", "base folder to write all the data to")
 
 	var enabledQueries = provider.AllQueryGroups
 	exclude := &excludeQueryGroup{queries: enabledQueries}
