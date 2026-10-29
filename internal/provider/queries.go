@@ -1,46 +1,46 @@
 package provider
 
 type QueryGroups struct {
-	queries    []string
-	outputFile string
-	searchType string
+	Queries    []string
+	OutputFile string
+	SearchType string
 }
 
 var AllQueryGroups = map[string]*QueryGroups{
 	"cloud-endpoints": {
-		queries:    CloudQueries[:],
-		outputFile: "cloud_endpoints.json",
-		searchType: "messages",
+		Queries:    CloudQueries[:],
+		OutputFile: "cloud_endpoints.json",
+		SearchType: "messages",
 	},
 	"credentials": {
-		queries:    CredentialQueries[:],
-		outputFile: "credentials.json",
-		searchType: "messages",
+		Queries:    CredentialQueries[:],
+		OutputFile: "credentials.json",
+		SearchType: "messages",
 	},
 	"connection-strings": {
-		queries:    ConnectionStringQueries[:],
-		outputFile: "connection_strings.json",
-		searchType: "messages",
+		Queries:    ConnectionStringQueries[:],
+		OutputFile: "connection_strings.json",
+		SearchType: "messages",
 	},
 	"active-directory": {
-		queries:    ActiveDirectoryQueries[:],
-		outputFile: "active_directory.json",
-		searchType: "messages",
+		Queries:    ActiveDirectoryQueries[:],
+		OutputFile: "active_directory.json",
+		SearchType: "messages",
 	},
 	"api-keys": {
-		queries:    APIPrefixQueries[:],
-		outputFile: "api_keys.json",
-		searchType: "messages",
+		Queries:    APIPrefixQueries[:],
+		OutputFile: "api_keys.json",
+		SearchType: "messages",
 	},
 	"private-keys": {
-		queries:    PrivateKeyQueries[:],
-		outputFile: "private_keys.json",
-		searchType: "messages",
+		Queries:    PrivateKeyQueries[:],
+		OutputFile: "private_keys.json",
+		SearchType: "messages",
 	},
 	"interesting-files": {
-		queries:    InterestingFileQueries[:],
-		outputFile: "interesting_files.json",
-		searchType: "files",
+		Queries:    InterestingFileQueries[:],
+		OutputFile: "interesting_files.json",
+		SearchType: "files",
 	},
 }
 
