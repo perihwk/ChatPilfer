@@ -12,6 +12,7 @@ type ProviderType int
 const (
 	Slack ProviderType = iota
 	Teams
+	ClaudeChat
 )
 
 func (pt *ProviderType) ToString() string {
@@ -20,6 +21,8 @@ func (pt *ProviderType) ToString() string {
 		return "slack"
 	case Teams:
 		return "teams"
+	case ClaudeChat:
+		return "claude-chat"
 	default:
 		return ""
 	}
@@ -27,6 +30,7 @@ func (pt *ProviderType) ToString() string {
 
 type ChatProvider interface {
 	Initialize() error
+	Pilfer(outputDir string, queries map[string]*QueryGroups) error
 	SearchMessagesRegex(queries []string, regex string) (map[string][]any, error)
 	SearchMessages(queries []string) (map[string][]any, error)
 	SearchFiles(queries []string) (map[string][]any, error)
@@ -78,129 +82,22 @@ func (s *service) UpdateProvider(name string, providerQueries map[string]*QueryG
 func (s *service) PilferAll() map[string]error {
 	providerErrors := make(map[string]error)
 	for pName, provider := range s.providers {
-		if err := os.MkdirAll(path.Join(s.outputFolder, provider.Type.ToString(), provider.Name), 0750); err != nil {
+		providerOutputDir := path.Join(s.outputFolder, provider.Type.ToString(), provider.Name)
+		if err := os.MkdirAll(providerOutputDir, 0750); err != nil {
 			providerErrors[provider.Name] = err
 			continue
 		}
-		for _, queryGroup := range provider.Queries {
-			fileCache, err := os.OpenFile(path.Join(s.outputFolder, provider.Type.ToString(), provider.Name, queryGroup.outputFile), os.O_RDWR|os.O_CREATE, 0644)
-			if err != nil {
-				providerErrors[pName] = err
-				break
-			}
 
-			var queryResults map[string][]any
-			if queryGroup.searchType == "messages" {
-				queryResults, err = provider.ChatProvider.SearchMessages(queryGroup.queries)
-				if err != nil {
-					continue
-				}
-			} else if queryGroup.searchType == "files" {
-				queryResults, err = provider.ChatProvider.SearchFiles(queryGroup.queries)
-				if err != nil {
-					continue
-				}
-			}
-
-			s.writeOutput(queryResults, fileCache)
+		if err := provider.ChatProvider.Pilfer(providerOutputDir, provider.Queries); err != nil {
+			providerErrors[pName] = err
+			continue
 		}
 	}
 	return providerErrors
 }
 
-func (s *service) SearchCloudEndpoints(name string) (map[string][]any, error) {
-	if s.providers[name] == nil {
-		return nil, fmt.Errorf("no provider found with name %s", name)
-	}
-	entry := s.providers[name]
-
-	if entry.Queries["cloud_endpoints"] == nil {
-		return nil, fmt.Errorf("cloud endpoints queries are disabled for provider %s", name)
-	}
-
-	// create directory if it doesn't exist
-	if err := os.MkdirAll(path.Join(entry.Type.ToString(), entry.Name), 0750); err != nil {
-		return nil, err
-	}
-
-	fileCache, err := os.OpenFile(path.Join(entry.Type.ToString(), entry.Name, "cloud_endpoints.json"), os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	cloudEndpoints, err := entry.ChatProvider.SearchMessages(CloudQueries[:])
-	if err != nil {
-		return nil, err
-	}
-
-	s.writeOutput(cloudEndpoints, fileCache)
-	return cloudEndpoints, nil
-}
-
-func (s *service) SearchPasswords(name string) (map[string][]any, error) {
-	if s.providers[name] == nil {
-		return nil, fmt.Errorf("no provider found with name %s", name)
-	}
-	entry := s.providers[name]
-
-	if entry.Queries["credentials"] == nil {
-		return nil, fmt.Errorf("cloud endpoints queries are disabled for provider %s", name)
-	}
-
-	// create directory if it doesn't exist
-	if err := os.MkdirAll(path.Join(entry.Type.ToString(), entry.Name), 0750); err != nil {
-		return nil, err
-	}
-
-	fileCache, err := os.OpenFile(path.Join(entry.Type.ToString(), entry.Name, "credentials.json"), os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	credentialResults, err := entry.SearchMessages(CredentialQueries[:])
-	if err != nil {
-		return nil, err
-	}
-
-	s.writeOutput(credentialResults, fileCache)
-	return credentialResults, nil
-}
-
-func (s *service) SearchConnectionStrings(name string) (map[string][]any, error) {
-	if s.providers[name] == nil {
-		return nil, fmt.Errorf("no provider found with name %s", name)
-	}
-	entry := s.providers[name]
-
-	if entry.Queries["connection-strings"] == nil {
-		return nil, fmt.Errorf("cloud endpoints queries are disabled for provider %s", name)
-	}
-
-	// create directory if it doesn't exist
-	if err := os.MkdirAll(path.Join(entry.Type.ToString(), entry.Name), 0750); err != nil {
-		return nil, err
-	}
-
-	if err := os.MkdirAll(path.Join(entry.Type.ToString(), entry.Name), 0750); err != nil {
-		return nil, err
-	}
-
-	fileCache, err := os.OpenFile(path.Join(entry.Type.ToString(), entry.Name, "connection_strings.json"), os.O_RDWR|os.O_CREATE, 0644)
-	if err != nil {
-		return nil, err
-	}
-
-	connectionStrings, err := entry.SearchMessages(ConnectionStringQueries[:])
-	if err != nil {
-		return nil, err
-	}
-
-	s.writeOutput(connectionStrings, fileCache)
-	return connectionStrings, nil
-}
-
 // write the output to a file for future reference
-func (s *service) writeOutput(input any, outputFile *os.File) error {
+func WriteOutput(input any, outputFile *os.File) error {
 	encoder := json.NewEncoder(outputFile)
 	encoder.SetIndent("", "  ")
 
