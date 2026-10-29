@@ -11,8 +11,6 @@ import (
 	"strconv"
 	"sync"
 	"time"
-
-	"golang.org/x/net/publicsuffix"
 )
 
 const (
@@ -130,7 +128,7 @@ func (rt *rateLimitTransport) RoundTrip(req *http.Request) (*http.Response, erro
 }
 
 func GetProvidersFromCookie(proxyServer, userAgent, dCookie string) ([]*SlackSearchProvider, error) {
-	jar, err := cookiejar.New(&cookiejar.Options{PublicSuffixList: publicsuffix.List})
+	jar, err := cookiejar.New(nil)
 	if err != nil {
 		return nil, err
 	}
