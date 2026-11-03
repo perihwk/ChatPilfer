@@ -3,16 +3,20 @@ package main
 import (
 	"flag"
 	"log"
+	"net/http"
 	"strings"
 
 	"github.com/perihwk/chatpilfer/internal/provider"
 	"github.com/perihwk/chatpilfer/internal/provider/slack"
+	"github.com/perihwk/chatpilfer/internal/provider/teams"
 )
 
 func main() {
 	var proxyServer = flag.String("proxy-server", "", "optional proxy url")
 	var userAgent = flag.String("user-agent", "", "optional user agent")
 	var dCookie = flag.String("slack-cookie", "", "the slack d cookie. Has prefix 'xoxd'")
+	//var skypeToken = flag.String("skype-token", "", "Teams Skype bearer token. Value for the `X-Skypetoken` header")
+	var teamsToken = flag.String("teams-token", "", "Teams bearer token. Value for the `Authorization` header")
 	var outputFolder = flag.String("output", "out", "base folder to write all the data to")
 
 	var enabledQueries = provider.AllQueryGroups
@@ -37,10 +41,12 @@ func main() {
 		}
 	}
 
-	errors := service.PilferAll()
-	if len(errors) > 0 {
-		log.Println(errors)
+	if *teamsToken != "" {
+		teamsProvider := teams.NewTeamsProvider(http.DefaultClient, *teamsToken, *userAgent)
+		service.AddProvider(teamsProvider.DisplayName, provider.Slack, teamsProvider)
 	}
+
+	service.PilferAll()
 }
 
 type excludeQueryGroup struct {
