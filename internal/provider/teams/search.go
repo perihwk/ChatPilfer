@@ -54,89 +54,30 @@ type searchQuery struct {
 }
 
 type teamsSearchAPIResponse struct {
-	ApiVersion           string          `json:"ApiVersion"`
-	SearchTerms          []string        `json:"SearchTerms"`
-	EntitySets           []entitySet     `json:"EntitySets"`
-	RestrictedSearchMode string          `json:"RestrictedSearchMode"`
-	Instrumentation      instrumentation `json:"Instrumentation"`
-}
-
-type instrumentation struct {
-	TraceId string `json:"TraceId"`
+	EntitySets []entitySet `json:"EntitySets"`
 }
 
 type entitySet struct {
-	ResultSets  []resultSet    `json:"ResultSets"`
-	EntityType  string         `json:"EntityType"`
-	SearchTerms []string       `json:"SearchTerms"`
-	Properties  entitySetProps `json:"Properties"`
-	QueryId     string         `json:"QueryId"`
-	IsPartial   bool           `json:"IsPartial"`
-}
-
-type entitySetProps struct {
-	WordBreakerLanguage string `json:"WordBreakerLanguage"`
-	HasParseException   bool   `json:"HasParseException"`
+	ResultSets []resultSet `json:"ResultSets"`
 }
 
 type resultSet struct {
-	Provenance             string             `json:"Provenance"`
-	ContentSources         []string           `json:"ContentSources"`
-	Results                []searchResultItem `json:"Results"`
-	Total                  int                `json:"Total"`
-	TotalWithoutCollapsing int                `json:"TotalWithoutCollapsing"`
-	MoreResultsAvailable   bool               `json:"MoreResultsAvailable"`
-	QueryId                string             `json:"QueryId"`
-	Rank                   int                `json:"Rank"`
-	Properties             resultSetProps     `json:"Properties"`
-}
-
-type resultSetProps struct {
-	RenderTemplateId string `json:"RenderTemplateId"`
+	Results []searchResultItem `json:"Results"`
+	Total   int                `json:"Total"`
 }
 
 type searchResultItem struct {
 	Id                    string        `json:"Id"`
-	Provenance            string        `json:"Provenance"`
-	ContentSource         string        `json:"ContentSource"`
-	ReferenceId           string        `json:"ReferenceId"`
 	HitHighlightedSummary string        `json:"HitHighlightedSummary"`
-	Rank                  int           `json:"Rank"`
-	SearchKey             string        `json:"SearchKey"`
-	SortOrderSource       string        `json:"SortOrderSource"`
 	Source                messageSource `json:"Source"`
-	Type                  string        `json:"Type"`
-	ResultSearchType      string        `json:"ResultSearchType"`
-	ProviderType          string        `json:"ProviderType"`
 }
 
 type messageSource struct {
-	Id                      string           `json:"Id"`
-	SortOrderSource         string           `json:"SortOrderSource"`
-	ItemId                  idRef            `json:"ItemId"`
-	ImmutableId             string           `json:"ImmutableId"`
-	AnnouncementTitle       string           `json:"AnnouncementTitle"`
-	ClientConversationId    string           `json:"ClientConversationId"`
-	ClientThreadId          string           `json:"ClientThreadId"`
-	DateTimeCreated         time.Time        `json:"DateTimeCreated"`
-	DateTimeReceived        time.Time        `json:"DateTimeReceived"`
-	DateTimeSent            time.Time        `json:"DateTimeSent"`
-	DisplayTo               string           `json:"DisplayTo"`
-	HasAttachments          bool             `json:"HasAttachments"`
-	Importance              string           `json:"Importance"`
-	InternetMessageId       string           `json:"InternetMessageId"`
-	ParentFolderDisplayName string           `json:"ParentFolderDisplayName"`
-	Preview                 string           `json:"Preview"`
-	Sender                  emailAddressWrap `json:"Sender"`
-	Subject                 string           `json:"Subject"`
-	ConversationId          idRef            `json:"ConversationId"`
-	From                    emailAddressWrap `json:"From"`
-	MailboxGuids            []string         `json:"MailboxGuids"`
-	MentionsPreview         mentionsPreview  `json:"MentionsPreview"`
-}
-
-type idRef struct {
-	Id string `json:"Id"`
+	ClientConversationId string           `json:"ClientConversationId"`
+	ClientThreadId       string           `json:"ClientThreadId"`
+	DateTimeSent         time.Time        `json:"DateTimeSent"`
+	HasAttachments       bool             `json:"HasAttachments"`
+	Sender               emailAddressWrap `json:"Sender"`
 }
 
 type emailAddressWrap struct {
@@ -146,10 +87,6 @@ type emailAddressWrap struct {
 type emailAddress struct {
 	Name    string `json:"Name"`
 	Address string `json:"Address"`
-}
-
-type mentionsPreview struct {
-	IsMentioned bool `json:"IsMentioned"`
 }
 
 type fileSearchResult struct {
@@ -165,88 +102,32 @@ type fileSearchResult struct {
 }
 
 type filesSearchAPIResponse struct {
-	ApiVersion           string          `json:"ApiVersion"`
-	SearchTerms          []string        `json:"SearchTerms"`
-	EntitySets           []fileEntitySet `json:"EntitySets"`
-	WasGroupsRestricted  bool            `json:"WasGroupsRestricted"`
-	RestrictedSearchMode string          `json:"RestrictedSearchMode"`
-	Instrumentation      instrumentation `json:"Instrumentation"`
+	EntitySets []fileEntitySet `json:"EntitySets"`
 }
 
 type fileEntitySet struct {
-	ResultSets []fileResultSet    `json:"ResultSets"`
-	EntityType string             `json:"EntityType"`
-	Properties fileEntitySetProps `json:"Properties"`
-	QueryId    string             `json:"QueryId"`
-	IsPartial  bool               `json:"IsPartial"`
-}
-
-type fileEntitySetProps struct {
-	WordBreakerLanguage string `json:"WordBreakerLanguage"`
-	SourceId            string `json:"SourceId"`
-	HasParseException   bool   `json:"HasParseException"`
+	ResultSets []fileResultSet `json:"ResultSets"`
 }
 
 type fileResultSet struct {
-	Provenance             string           `json:"Provenance"`
-	ContentSources         []string         `json:"ContentSources"`
-	Results                []fileResultItem `json:"Results"`
-	Total                  int              `json:"Total"`
-	TotalWithoutCollapsing int              `json:"TotalWithoutCollapsing"`
-	MoreResultsAvailable   bool             `json:"MoreResultsAvailable"`
-	QueryId                string           `json:"QueryId"`
-	Rank                   int              `json:"Rank"`
-	QueryModification      string           `json:"QueryModification"`
-	Properties             resultSetProps   `json:"Properties"`
+	Results []fileResultItem `json:"Results"`
+	Total   int              `json:"Total"`
 }
 
 type fileResultItem struct {
-	Id            string     `json:"Id"`
-	Provenance    string     `json:"Provenance"`
-	ContentSource string     `json:"ContentSource"`
-	ReferenceId   string     `json:"ReferenceId"`
-	Rank          int        `json:"Rank"`
-	Source        fileSource `json:"Source"`
-	Type          string     `json:"Type"`
-	ProviderType  string     `json:"ProviderType"`
+	Id     string     `json:"Id"`
+	Source fileSource `json:"Source"`
 }
 
 type fileSource struct {
-	DocId                                   string    `json:"DocId"`
-	FileType                                string    `json:"FileType"`
-	Filename                                string    `json:"Filename"`
-	WorkingSetId                            string    `json:"WorkingSetId"`
-	Title                                   string    `json:"Title"`
-	ContentClass                            string    `json:"ContentClass"`
-	ContentTypeId                           string    `json:"ContentTypeId"`
-	DefaultEncodingUrl                      string    `json:"DefaultEncodingUrl"`
-	LinkingUrl                              string    `json:"LinkingUrl"`
-	Path                                    string    `json:"Path"`
-	SPWebUrl                                string    `json:"SPWebUrl"`
-	SiteTemplateId                          int       `json:"SiteTemplateId"`
-	SiteTitle                               string    `json:"SiteTitle"`
-	SiteId                                  string    `json:"SiteId"`
-	ListID                                  string    `json:"ListID"`
-	WebId                                   string    `json:"WebId"`
-	UniqueID                                string    `json:"UniqueID"`
-	LastModifiedTime                        time.Time `json:"LastModifiedTime"`
-	ModifiedBy                              string    `json:"ModifiedBy"`
-	IsDocument                              bool      `json:"isDocument"`
-	IsContainer                             bool      `json:"IsContainer"`
-	IsExternalContent                       bool      `json:"isexternalcontent"`
-	ViewsLifeTimeUniqueUsers                int       `json:"ViewsLifeTimeUniqueUsers"`
-	ViewCount                               int       `json:"ViewCount"`
-	ViewerCount                             int       `json:"ViewerCount"`
-	IntentScore                             int       `json:"IntentScore"`
-	Author                                  string    `json:"Author"`
-	Created                                 time.Time `json:"Created"`
-	Size                                    int       `json:"Size"`
-	Description                             string    `json:"Description"`
-	LastSharedWithMailboxOwnerByDisplayName string    `json:"LastSharedWithMailboxOwnerByDisplayName"`
-	LastSharedWithMailboxOwnerBySmtp        string    `json:"LastSharedWithMailboxOwnerBySmtp"`
-	LastSharedWithMailboxOwnerDateTime      time.Time `json:"LastSharedWithMailboxOwnerDateTime"`
-	FileID                                  string    `json:"FileID"`
-	FromFileCI                              bool      `json:"FromFileCI"`
+	FileType         string    `json:"FileType"`
+	Filename         string    `json:"Filename"`
+	LinkingUrl       string    `json:"LinkingUrl"`
+	SiteTitle        string    `json:"SiteTitle"`
+	LastModifiedTime time.Time `json:"LastModifiedTime"`
+	ModifiedBy       string    `json:"ModifiedBy"`
+	Author           string    `json:"Author"`
+	Size             int       `json:"Size"`
 }
 
 // individual search request does not handle pagination
