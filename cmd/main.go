@@ -16,7 +16,7 @@ func main() {
 	var userAgent = flag.String("user-agent", "", "optional user agent")
 	var dCookie = flag.String("slack-cookie", "", "the slack d cookie. Has prefix 'xoxd'")
 	//var skypeToken = flag.String("skype-token", "", "Teams Skype bearer token. Value for the `X-Skypetoken` header")
-	var teamsToken = flag.String("teams-token", "", "Teams bearer token. Value for the `Authorization` header")
+	var teamsToken = flag.String("teams-token", "", "Teams bearer token with SubstrateSearch scp")
 	var outputFolder = flag.String("output", "out", "base folder to write all the data to")
 
 	var enabledQueries = provider.AllQueryGroups
