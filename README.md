@@ -28,6 +28,6 @@ go run cmd/main.go --slack-cookie <d-cookie> --proxy-server http://<proxy-url>:<
 
  * Exclude the groups of queries you don't want to run
 
-  ```go run cmd/main.go --interactive```
+```go run cmd/main.go --teams-token <bearer token with SubstrateSearch scp>```
 
-  * WIP eventually this will be the full blown TUI
+* EXPERIMENTAL TEAMS ( I have limited access to enterprise Teams so this is NOT fully vetted like Slack is)
