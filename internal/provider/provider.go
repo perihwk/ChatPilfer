@@ -3,8 +3,10 @@ package provider
 import (
 	"encoding/json"
 	"fmt"
+	"log"
 	"os"
 	"path"
+	"sync"
 )
 
 type ProviderType int
@@ -12,7 +14,6 @@ type ProviderType int
 const (
 	Slack ProviderType = iota
 	Teams
-	ClaudeChat
 )
 
 func (pt *ProviderType) ToString() string {
@@ -21,8 +22,6 @@ func (pt *ProviderType) ToString() string {
 		return "slack"
 	case Teams:
 		return "teams"
-	case ClaudeChat:
-		return "claude-chat"
 	default:
 		return ""
 	}
@@ -79,8 +78,10 @@ func (s *service) UpdateProvider(name string, providerQueries map[string]*QueryG
 	return nil
 }
 
-func (s *service) PilferAll() map[string]error {
+func (s *service) PilferAll() {
 	providerErrors := make(map[string]error)
+	var wg sync.WaitGroup
+
 	for pName, provider := range s.providers {
 		providerOutputDir := path.Join(s.outputFolder, provider.Type.ToString(), provider.Name)
 		if err := os.MkdirAll(providerOutputDir, 0750); err != nil {
@@ -88,12 +89,14 @@ func (s *service) PilferAll() map[string]error {
 			continue
 		}
 
-		if err := provider.ChatProvider.Pilfer(providerOutputDir, provider.Queries); err != nil {
-			providerErrors[pName] = err
-			continue
-		}
+		wg.Go(func() {
+			log.Printf("began pilfering provider %s-%s\n", provider.Type.ToString(), pName)
+			if err := provider.ChatProvider.Pilfer(providerOutputDir, provider.Queries); err != nil {
+				log.Printf("%s-%s provider error: %s\n", provider.Type.ToString(), pName, err)
+			}
+		})
 	}
-	return providerErrors
+	wg.Wait()
 }
 
 // write the output to a file for future reference
